@@ -1,0 +1,208 @@
+#
+# <meta:header>
+#   <meta:licence>
+#     Copyright (c) 2019, ROE (http://www.roe.ac.uk/)
+#
+#     This information is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+#
+#     This information is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#   </meta:licence>
+# </meta:header>
+#
+#
+
+    #
+    # The python-confluent-kafka package on conda-forge hasn't been updated of a while.
+    # https://anaconda.org/conda-forge/python-confluent-kafka
+    #   Last upload: 7 months ago
+    #
+
+    #
+    # The Confluent GitHub project was updated 11 days ago.
+    # https://github.com/confluentinc/confluent-kafka-python
+    #
+
+    #
+    # The Confluent GitHub README recomends installing using pip.
+    # https://github.com/confluentinc/confluent-kafka-python#install
+    #
+
+#
+# Create an empty VM.
+
+    createvm
+
+    >   INFO : Node name [Saewan]
+    >   INFO : Base name [fedora-28-docker-base-20180708.qcow]
+    >   INFO : Base path [/var/lib/libvirt/images/base/fedora-28-docker-base-20180708.qcow]
+    >   INFO : Disc name [Saewan.qcow]
+    >   INFO : Disc size [16GiB]
+
+    ssh Saewan
+
+#
+# Checkout a recent copy of the source code.
+
+
+    git clone \
+        "https://github.com/lsst-uk/lasair.git" \
+        "${HOME}/lasair"
+
+    git clone \
+        "https://github.com/ZwickyTransientFacility/ztf-avro-alert.git" \
+        "${HOME}/lasair/src/kafkatests/ztf-avro-alert"
+
+#
+# Build a Docker image, installing the client libraries with pip.
+
+    pushd "${HOME}/lasair/src/kafkatests"
+
+        cat > Dockerfile << EOF
+FROM fedora:30
+
+RUN dnf -y install git
+
+RUN dnf -y install python3
+
+RUN dnf -y install python3-pip
+
+RUN pip3 install confluent-kafka
+RUN pip3 install confluent-kafka[avro]
+
+COPY . /kafkatests
+
+EOF
+
+        docker build \
+            --tag 'kafkatests:1.0' \
+            .
+
+    popd
+
+#
+# Run the Docker container.
+
+    docker run \
+        --rm \
+        --tty \
+        --interactive \
+        'kafkatests:1.0' \
+            bash
+
+        pushd kafkatests
+
+            # Fix the infinite loop.
+            sed -i '
+                57 s/continue/break/
+                ' consumer_thread.py
+
+            # Run the test
+            python3 consumer_thread.py 4
+
+        popd
+
+
+    # Four threads ..
+
+    >   Exiting Thread-2 with 201 events
+    >   Exiting Thread-4 with 241 events
+    >   Exiting Thread-3 with 270 events
+    >   Exiting Thread-1 with 288 events
+
+        201 + 241 + 270 + 288 = 1000
+
+    # Eight threads ..
+
+    >   Exiting Thread-7 with 76 events
+    >   Exiting Thread-4 with 85 events
+    >   Exiting Thread-8 with 119 events
+    >   Exiting Thread-6 with 142 events
+    >   Exiting Thread-5 with 137 events
+    >   Exiting Thread-2 with 151 events
+    >   Exiting Thread-3 with 151 events
+    >   Exiting Thread-1 with 139 events
+
+        76 + 85 + 119 + 142 + 137 + 151 + 151 + 139 = 1000
+
+    # Sixteen threads ..
+
+    >   Exiting Thread-12 with 0 events
+    >   Exiting Thread-15 with 0 events
+    >   Exiting Thread-6 with 53 events
+    >   Exiting Thread-5 with 62 events
+    >   Exiting Thread-1 with 71 events
+    >   Exiting Thread-14 with 76 events
+    >   Exiting Thread-3 with 76 events
+    >   Exiting Thread-9 with 66 events
+    >   Exiting Thread-2 with 76 events
+    >   Exiting Thread-10 with 59 events
+    >   Exiting Thread-4 with 75 events
+    >   Exiting Thread-13 with 71 events
+    >   Exiting Thread-11 with 75 events
+    >   Exiting Thread-7 with 80 events
+    >   Exiting Thread-16 with 85 events
+    >   Exiting Thread-8 with 75 events
+
+        0 + 0 + 53 + 62 + 71 + 76 + 76 + 66 + 76 + 59 + 75 + 71 + 75 + 80 + 85 + 75 = 1000
+
+    # Reduce the delay.
+    sed -i '
+        55 s/timeout=60/timeout=20/
+        ' consumer_thread.py
+
+    # Remove the extra loop.
+    sed -i '
+        64 s/^\( *\)/\1#/
+        67 s/if ialert == 0: //
+        68 s/^\( *\)/\1#/
+        ' consumer_thread.py
+
+
+    # Thirty two threads ..
+
+    >   Exiting Thread-5 with 0 events
+    >   Exiting Thread-1 with 0 events
+    >   Exiting Thread-3 with 0 events
+    >   Exiting Thread-4 with 0 events
+    >   Exiting Thread-8 with 0 events
+    >   Exiting Thread-6 with 0 events
+    >   Exiting Thread-11 with 0 events
+    >   Exiting Thread-17 with 0 events
+    >   Exiting Thread-13 with 0 events
+    >   Exiting Thread-19 with 0 events
+    >   Exiting Thread-18 with 0 events
+    >   Exiting Thread-20 with 0 events
+    >   Exiting Thread-22 with 0 events
+    >   Exiting Thread-24 with 0 events
+    >   Exiting Thread-25 with 0 events
+    >   Exiting Thread-28 with 0 events
+    >   Exiting Thread-27 with 0 events
+    >   Exiting Thread-26 with 0 events
+    >   Exiting Thread-16 with 53 events
+    >   Exiting Thread-29 with 66 events
+    >   Exiting Thread-9 with 76 events
+    >   Exiting Thread-7 with 76 events
+    >   Exiting Thread-15 with 62 events
+    >   Exiting Thread-2 with 76 events
+    >   Exiting Thread-10 with 59 events
+    >   Exiting Thread-12 with 71 events
+    >   Exiting Thread-21 with 75 events
+    >   Exiting Thread-23 with 71 events
+    >   Exiting Thread-31 with 75 events
+    >   Exiting Thread-32 with 80 events
+    >   Exiting Thread-14 with 85 events
+    >   Exiting Thread-30 with 75 events
+
+        53 + 66 + 76 + 76 + 62 + 76 + 59 + 71 + 75 + 71 + 75 + 80 + 85 + 75 = 1000
+
+
+

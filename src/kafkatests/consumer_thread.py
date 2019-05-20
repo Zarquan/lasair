@@ -54,7 +54,7 @@ class Consumer(threading.Thread):
                 try:
                     msg = streamReader.poll(decode=True, timeout=60)
                     if msg is None:
-                        continue
+                        break
                     for alert in msg:
                         data = msg_text(alert)
                         ialert += 1
